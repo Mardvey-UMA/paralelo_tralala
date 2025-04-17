@@ -1,0 +1,47 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Debug MPI Program",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "/usr/bin/mpirun",
+			"args": ["-np", "4", "${workspaceFolder}/bin/${fileBasenameNoExtension}"],
+			"stopAtEntry": false,
+			"cwd": "${workspaceFolder}",
+			"environment": [],
+			"externalConsole": false,
+			"MIMode": "gdb",
+			"preLaunchTask": "compile MPI",
+			"miDebuggerPath": "gdb"
+		},
+		{
+			"name": "Debug OpenMP+LAPACK",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/bin/${fileBasenameNoExtension}",
+			"args": [],
+			"stopAtEntry": false,
+			"cwd": "${workspaceFolder}",
+			"environment": [],
+			"externalConsole": false,
+			"MIMode": "gdb",
+			"preLaunchTask": "compile OpenMP+LAPACK",
+			"miDebuggerPath": "gdb"
+		},
+		{
+			"name": "Debug Standard C++",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/bin/${fileBasenameNoExtension}",
+			"args": [],
+			"stopAtEntry": false,
+			"cwd": "${workspaceFolder}",
+			"environment": [],
+			"externalConsole": false,
+			"MIMode": "gdb",
+			"preLaunchTask": "compile standard C++",
+			"miDebuggerPath": "gdb"
+		}
+	]
+}

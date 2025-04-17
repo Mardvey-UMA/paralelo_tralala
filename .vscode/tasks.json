@@ -1,0 +1,64 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "create bin directory",
+			"type": "shell",
+			"command": "mkdir",
+			"args": ["-p", "${workspaceFolder}/bin"],
+			"group": "build",
+			"presentation": {
+				"reveal": "silent"
+			}
+		},
+		{
+			"label": "compile OpenMP+LAPACK",
+			"type": "shell",
+			"command": "g++",
+			"args": [
+				"-fopenmp",
+				"${file}",
+				"-o",
+				"${workspaceFolder}/bin/${fileBasenameNoExtension}",
+				"-llapack",
+				"-lopenblas"
+			],
+			"group": "build",
+			"dependsOn": ["create bin directory"],
+			"problemMatcher": [],
+			"detail": "Компиляция с OpenMP, LAPACK и BLAS"
+		},
+		{
+			"label": "compile MPI",
+			"type": "shell",
+			"command": "mpic++",
+			"args": [
+				"${file}",
+				"-o",
+				"${workspaceFolder}/bin/${fileBasenameNoExtension}",
+				"-Wall",
+				"-O3"
+			],
+			"group": "build",
+			"dependsOn": ["create bin directory"],
+			"problemMatcher": [],
+			"detail": "Компиляция MPI программы"
+		},
+		{
+			"label": "compile standard C++",
+			"type": "shell",
+			"command": "g++",
+			"args": [
+				"${file}",
+				"-o",
+				"${workspaceFolder}/bin/${fileBasenameNoExtension}",
+				"-Wall",
+				"-O3"
+			],
+			"group": "build",
+			"dependsOn": ["create bin directory"],
+			"problemMatcher": [],
+			"detail": "Стандартная компиляция C++"
+		}
+	]
+}
