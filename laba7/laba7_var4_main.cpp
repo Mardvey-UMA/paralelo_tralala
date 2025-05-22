@@ -11,14 +11,7 @@ int main(int argc, char **argv) {
     MPI_Init(NULL, NULL);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
-    
-    if (size % 2 != 0) {
-        if (rank == 0) {
-            cerr << "This program requires an even number of processes." << endl;
-        }
-        MPI_Abort(MPI_COMM_WORLD, 1);
-    }
-    
+
     int NLen;
     MPI_Get_processor_name(Proc_Name, &NLen);
     double tick = MPI_Wtick();

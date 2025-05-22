@@ -1,56 +1,106 @@
-// MPI_Master_Slave_RU.cpp
-#include <mpi.h>
+//MPI_Waitsome-c-Bind.cpp
+#include "mpi.h"
 #include <iostream>
-#include <vector>
-#include <locale.h>
-
+#include <cmath>
 using namespace std;
-
-int main(int argc, char** argv) {
-    setlocale(LC_ALL, "ru_RU.UTF-8");
-    
-    MPI_Init(&argc, &argv);
-    
-    int rank, size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-    
-    if (size < 2) {
-        if (rank == 0) {
-            cerr << "Для работы программы требуется минимум 2 процесса!" << endl;
-        }
-        MPI_Abort(MPI_COMM_WORLD, 1);
-    }
-
-    if (rank == 0) { // Ведущий процесс
-        vector<MPI_Request> requests(size-1);
-        vector<MPI_Status> statuses(size-1);
-        vector<int> data(size-1);
-        vector<int> indices(size-1);
-        int outcount;
-        
-        // Инициализация неблокирующего приема
-        for (int i = 1; i < size; ++i) {
-            MPI_Irecv(&data[i-1], 1, MPI_INT, i, 0, MPI_COMM_WORLD, &requests[i-1]);
-        }
-        
-        // Ожидание завершения операций
-        cout << "Главный процесс начал ожидание сообщений..." << endl;
-        MPI_Waitsome(size-1, requests.data(), &outcount, indices.data(), statuses.data());
-        
-        // Обработка полученных данных
-        for (int i = 0; i < outcount; ++i) {
-            int idx = indices[i];
-            cout << "Получено сообщение от процесса " << (idx+1) 
-                 << " с данными: " << data[idx] << endl;
-        }
-    } 
-    else { // Ведомые процессы
-        int data_to_send = rank * 10;
-        MPI_Send(&data_to_send, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-        cout << "Процесс " << rank << " отправил данные: " << data_to_send << endl;
-    }
-    
-    MPI_Finalize();
-    return 0;
+//Проверка всех элементов
+bool Is_Finished(bool *Prizn, int N)
+{bool Res=true;
+for (int k=0; k<N; k++)
+Res=(Prizn[k]) && Res;
+return Res;
+}
+//Для корректной работы
+//Функция Master должна быть быстрее, чем Slave
+//Делаем число операций в ней пропорциональным длине массива
+double Master(double *A, int N)
+{double S=0;
+for (int k=0; k<N; k++)
+S+=A[k];
+return S;
+}
+//Для корректной работы
+//Функция Master должна быть быстрее, чем Slave
+//Делаем число операций в ней пропорциональным кубу длине массива
+void Slave(double *A, int N, int Rank)
+{static int Count=0;
+double *Tmp1=new double[N];
+double *Tmp2=new double[N];
+Tmp1[0]=cos(1.0+Count+Rank);
+Tmp2[0]=cos(1.0+Count-Rank);
+for (int k=1; k<N; k++){
+Tmp1[k]=sin(Tmp1[k-1]+Tmp2[k-1]);
+Tmp2[k]=sin(Tmp1[k-1]-Tmp2[k-1]);
+}
+//Длинный трехкратно вложенный цикл
+for (int k=0; k<N; k++){
+A[k]=0;
+for(int i=0; i<N; i++)
+for(int j=0; j<N; j++)
+A[k]+=Tmp1[i]*Tmp2[j]/(1+k+(i-j)*(i-j));
+}
+Count++;
+delete[] Tmp2;
+delete[] Tmp1;
+}
+int const NN=1000, NNN=3;
+int main(int argc, char **argv)
+{MPI_Init(NULL,NULL);
+int Size;
+MPI_Comm_size(MPI_COMM_WORLD, &Size);
+int Rank;
+MPI_Comm_rank(MPI_COMM_WORLD, &Rank);
+if (Size<2){
+cout<<"It is required not less than two processes!"<<endl;
+}
+else{
+if (Rank==0){//Ведущий процесс
+bool *Prizn=new bool[Size-1];
+double *A=new double[(Size-1)*NN];
+double *R=new double[Size-1];
+for (int k=0; k<Size-1; k++)
+R[k]=0;
+MPI_Request *Req = new MPI_Request[Size-1];
+MPI_Status *St = new MPI_Status[Size - 1];
+int *Indx=new int[Size-1];
+double Tms=MPI_Wtime();
+for (int m=0; m<NNN; m++){
+for (int k=1; k<Size; k++){
+Prizn[k-1]=false;
+MPI_Irecv(&A[NN*(k - 1)], NN, MPI_DOUBLE, k, 5,
+MPI_COMM_WORLD, &Req[k - 1]);
+}
+while(!Is_Finished(Prizn, Size-1)){//Какой-то из
+//ведомых процессов не переслал очередные данные
+int Num;
+MPI_Waitsome(Size - 1, Req, &Num, Indx, St);
+for (int k=0; k<Num; k++){
+Prizn[Indx[k]]=true;
+R[Indx[k]]+=Master(&A[NN*Indx[k]],NN);
+}
+}
+}
+Tms=MPI_Wtime()-Tms;
+for (int k=0; k<Size-1; k++)
+cout<<"R["<<k<<"]="<<R[k]<<endl;
+cout<<"Time="<<Tms<<" s"<<endl;
+delete[] Indx;
+delete[] St;
+delete[] Req;
+delete[] R;
+delete[] A;
+delete[] Prizn;
+}
+else{//Ведомые процессы
+double *A=new double[NN];
+for (int m=0; m<NNN; m++){
+Slave(A,NN,Rank);
+MPI_Send(A, NN, MPI_DOUBLE, 0, 5,
+MPI_COMM_WORLD);
+}
+delete[] A;
+}
+}
+MPI_Finalize();
+return 0;
 }
