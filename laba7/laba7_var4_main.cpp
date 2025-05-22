@@ -1,63 +1,48 @@
-#include "mpi.h"       
-#include <iostream>    
-
-using namespace std;   
+// MPI_Send_Recv_Timer.cpp
+#include "mpi.h"
+#include <iostream>
+using namespace std;
 
 int main(int argc, char **argv) {
-    double a = 0, b = 0, c = 0;  // a - отправляемые данные, b и c - получаемые
+    const int NTimes = 100;
+    char Proc_Name[MPI_MAX_PROCESSOR_NAME + 1];
+    int rank, size;
     
     MPI_Init(NULL, NULL);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
     
-    int Size;
-    MPI_Comm_size(MPI_COMM_WORLD, &Size);
+    if (size % 2 != 0) {
+        if (rank == 0) {
+            cerr << "This program requires an even number of processes." << endl;
+        }
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
     
-    // Получение ранга процесса
-    int Rank;  // Уникальный идентификатор процесса (от 0 до Size-1)
-    MPI_Comm_rank(MPI_COMM_WORLD, &Rank);
+    int NLen;
+    MPI_Get_processor_name(Proc_Name, &NLen);
+    double tick = MPI_Wtick();
     
-    // Вычисление номеров соседних процессов в кольцевой топологии
-    int Next = (Rank + 1) % Size;     // Следующий процесс в кольце
-    int Prev = (Rank - 1 + Size) % Size;  // Предыдущий процесс в кольце
-    //% Size обеспечивает замыкание в кольцо
+    int partner_rank = (rank % 2 == 0) ? rank + 1 : rank - 1;
+    int dummy = 0;
+    double time_start = MPI_Wtime();
     
-    // Подготовка данных для отправки
-    a = Rank + 0.7;  // Каждый процесс отправляет свой ранг + 0.7
+    for (int i = 0; i < NTimes; ++i) {
+        if (rank % 2 == 0) {
+            MPI_Send(&dummy, 1, MPI_INT, partner_rank, 0, MPI_COMM_WORLD);
+            MPI_Recv(&dummy, 1, MPI_INT, partner_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        } else {
+            MPI_Recv(&dummy, 1, MPI_INT, partner_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Send(&dummy, 1, MPI_INT, partner_rank, 0, MPI_COMM_WORLD);
+        }
+    }
     
-    // Первый обмен данными: отправка вправо, приём слева
-    MPI_Sendrecv(
-        &a,                // Указатель на отправляемые данные
-        1,                 // Количество элементов
-        MPI_DOUBLE,        // Тип данных
-        Next,              // Ранг процесса-получателя
-        5,                 // Тег сообщения
-        &b,                // Указатель на буфер для приёма
-        1,                 // Количество ожидаемых элементов
-        MPI_DOUBLE,        // Тип ожидаемых данных
-        Prev,              // Ранг процесса-отправителя
-        5,                 // Тег ожидаемого сообщения 
-        MPI_COMM_WORLD,    // Коммуникатор
-        MPI_STATUS_IGNORE  
-    );
+    double time_finish = MPI_Wtime();
+    double avg_time = (time_finish - time_start) / NTimes;
     
-    // Второй обмен данными: отправка влево, приём справа
-    MPI_Sendrecv(
-        &a,                
-        1, 
-        MPI_DOUBLE,
-        Prev,              // отправляем предыдущему процессу
-        5,
-        &c,                // Принимаем данные в переменную c
-        1,
-        MPI_DOUBLE,
-        Next,              // Ожидаем данные от следующего процесса
-        5,
-        MPI_COMM_WORLD,
-        MPI_STATUS_IGNORE
-    );
-    
-    cout << "Process " << Rank << ": a=" << a << " b=" << b << " c=" << c << endl;
+    cout << "Processor " << rank << " " << Proc_Name << endl
+         << "timer's tick=" << tick << " time=" << avg_time << endl;
     
     MPI_Finalize();
-    
     return 0;
 }
