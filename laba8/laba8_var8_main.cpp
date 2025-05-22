@@ -1,63 +1,62 @@
-#include "mpi.h"       
-#include <iostream>    
+// MPI_Ring_Topology_RU.cpp
+#include <mpi.h>
+#include <iostream>
+#include <cstdlib>
+#include <locale.h>
 
-using namespace std;   
+using namespace std;
 
-int main(int argc, char **argv) {
-    double a = 0, b = 0, c = 0;  // a - отправляемые данные, b и c - получаемые
+int main(int argc, char** argv) {
+    setlocale(LC_ALL, "ru_RU.UTF-8");
     
-    MPI_Init(NULL, NULL);
+    MPI_Init(&argc, &argv);
     
-    int Size;
-    MPI_Comm_size(MPI_COMM_WORLD, &Size);
-    
-    // Получение ранга процесса
-    int Rank;  // Уникальный идентификатор процесса (от 0 до Size-1)
-    MPI_Comm_rank(MPI_COMM_WORLD, &Rank);
-    
-    // Вычисление номеров соседних процессов в кольцевой топологии
-    int Next = (Rank + 1) % Size;     // Следующий процесс в кольце
-    int Prev = (Rank - 1 + Size) % Size;  // Предыдущий процесс в кольце
-    //% Size обеспечивает замыкание в кольцо
-    
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (size < 2) {
+        if (rank == 0) {
+            cerr << "Требуется минимум 2 процесса!" << endl;
+        }
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    // Определение соседей в кольце
+    int prev_rank = (rank - 1 + size) % size;
+    int next_rank = (rank + 1) % size;
+
+    // Выделение буфера для буферизованной отправки
+    int* buffer;
+    int buffer_size = sizeof(int) + MPI_BSEND_OVERHEAD;
+    buffer = (int*)malloc(buffer_size);
+    MPI_Buffer_attach(buffer, buffer_size);
+
     // Подготовка данных для отправки
-    a = Rank + 0.7;  // Каждый процесс отправляет свой ранг + 0.7
-    
-    // Первый обмен данными: отправка вправо, приём слева
-    MPI_Sendrecv(
-        &a,                // Указатель на отправляемые данные
-        1,                 // Количество элементов
-        MPI_DOUBLE,        // Тип данных
-        Next,              // Ранг процесса-получателя
-        5,                 // Тег сообщения
-        &b,                // Указатель на буфер для приёма
-        1,                 // Количество ожидаемых элементов
-        MPI_DOUBLE,        // Тип ожидаемых данных
-        Prev,              // Ранг процесса-отправителя
-        5,                 // Тег ожидаемого сообщения 
-        MPI_COMM_WORLD,    // Коммуникатор
-        MPI_STATUS_IGNORE  
-    );
-    
-    // Второй обмен данными: отправка влево, приём справа
-    MPI_Sendrecv(
-        &a,                
-        1, 
-        MPI_DOUBLE,
-        Prev,              // отправляем предыдущему процессу
-        5,
-        &c,                // Принимаем данные в переменную c
-        1,
-        MPI_DOUBLE,
-        Next,              // Ожидаем данные от следующего процесса
-        5,
-        MPI_COMM_WORLD,
-        MPI_STATUS_IGNORE
-    );
-    
-    cout << "Process " << Rank << ": a=" << a << " b=" << b << " c=" << c << endl;
-    
+    int send_data = rank * 10;
+    MPI_Request request;
+
+    // Неблокирующая буферизованная отправка следующему процессу
+    MPI_Ibsend(&send_data, 1, MPI_INT, next_rank, 0, MPI_COMM_WORLD, &request);
+
+    // Блокирующий прием от предыдущего процесса
+    int recv_data;
+    MPI_Recv(&recv_data, 1, MPI_INT, prev_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+    // Ожидание завершения операции отправки
+    MPI_Wait(&request, MPI_STATUS_IGNORE);
+
+    // Освобождение буфера
+    MPI_Buffer_detach(buffer, &buffer_size);
+    free(buffer);
+
+    // Вывод результатов
+    cout << "Процесс " << rank 
+         << " отправил данные: " << send_data 
+         << " процессу " << next_rank 
+         << ", получил: " << recv_data 
+         << " от процесса " << prev_rank << endl;
+
     MPI_Finalize();
-    
     return 0;
 }

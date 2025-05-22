@@ -1,63 +1,56 @@
-#include "mpi.h"       
-#include <iostream>    
+// MPI_Master_Slave_RU.cpp
+#include <mpi.h>
+#include <iostream>
+#include <vector>
+#include <locale.h>
 
-using namespace std;   
+using namespace std;
 
-int main(int argc, char **argv) {
-    double a = 0, b = 0, c = 0;  // a - отправляемые данные, b и c - получаемые
+int main(int argc, char** argv) {
+    setlocale(LC_ALL, "ru_RU.UTF-8");
     
-    MPI_Init(NULL, NULL);
+    MPI_Init(&argc, &argv);
     
-    int Size;
-    MPI_Comm_size(MPI_COMM_WORLD, &Size);
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
     
-    // Получение ранга процесса
-    int Rank;  // Уникальный идентификатор процесса (от 0 до Size-1)
-    MPI_Comm_rank(MPI_COMM_WORLD, &Rank);
-    
-    // Вычисление номеров соседних процессов в кольцевой топологии
-    int Next = (Rank + 1) % Size;     // Следующий процесс в кольце
-    int Prev = (Rank - 1 + Size) % Size;  // Предыдущий процесс в кольце
-    //% Size обеспечивает замыкание в кольцо
-    
-    // Подготовка данных для отправки
-    a = Rank + 0.7;  // Каждый процесс отправляет свой ранг + 0.7
-    
-    // Первый обмен данными: отправка вправо, приём слева
-    MPI_Sendrecv(
-        &a,                // Указатель на отправляемые данные
-        1,                 // Количество элементов
-        MPI_DOUBLE,        // Тип данных
-        Next,              // Ранг процесса-получателя
-        5,                 // Тег сообщения
-        &b,                // Указатель на буфер для приёма
-        1,                 // Количество ожидаемых элементов
-        MPI_DOUBLE,        // Тип ожидаемых данных
-        Prev,              // Ранг процесса-отправителя
-        5,                 // Тег ожидаемого сообщения 
-        MPI_COMM_WORLD,    // Коммуникатор
-        MPI_STATUS_IGNORE  
-    );
-    
-    // Второй обмен данными: отправка влево, приём справа
-    MPI_Sendrecv(
-        &a,                
-        1, 
-        MPI_DOUBLE,
-        Prev,              // отправляем предыдущему процессу
-        5,
-        &c,                // Принимаем данные в переменную c
-        1,
-        MPI_DOUBLE,
-        Next,              // Ожидаем данные от следующего процесса
-        5,
-        MPI_COMM_WORLD,
-        MPI_STATUS_IGNORE
-    );
-    
-    cout << "Process " << Rank << ": a=" << a << " b=" << b << " c=" << c << endl;
+    if (size < 2) {
+        if (rank == 0) {
+            cerr << "Для работы программы требуется минимум 2 процесса!" << endl;
+        }
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    if (rank == 0) { // Ведущий процесс
+        vector<MPI_Request> requests(size-1);
+        vector<MPI_Status> statuses(size-1);
+        vector<int> data(size-1);
+        vector<int> indices(size-1);
+        int outcount;
+        
+        // Инициализация неблокирующего приема
+        for (int i = 1; i < size; ++i) {
+            MPI_Irecv(&data[i-1], 1, MPI_INT, i, 0, MPI_COMM_WORLD, &requests[i-1]);
+        }
+        
+        // Ожидание завершения операций
+        cout << "Главный процесс начал ожидание сообщений..." << endl;
+        MPI_Waitsome(size-1, requests.data(), &outcount, indices.data(), statuses.data());
+        
+        // Обработка полученных данных
+        for (int i = 0; i < outcount; ++i) {
+            int idx = indices[i];
+            cout << "Получено сообщение от процесса " << (idx+1) 
+                 << " с данными: " << data[idx] << endl;
+        }
+    } 
+    else { // Ведомые процессы
+        int data_to_send = rank * 10;
+        MPI_Send(&data_to_send, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+        cout << "Процесс " << rank << " отправил данные: " << data_to_send << endl;
+    }
     
     MPI_Finalize();
-    
     return 0;
 }
