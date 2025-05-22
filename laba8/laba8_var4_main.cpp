@@ -4,7 +4,6 @@ using namespace std;
 
 const int N = 8;
 
-// Пользовательская функция для операции сложения по модулю 8
 void UsrFunc(void *In, void *InOut, int *len, MPI_Datatype *Ty) {
     int *InV = (int *)In;
     int *InOutV = (int *)InOut;

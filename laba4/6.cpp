@@ -12,6 +12,8 @@ void sleep(int Secnds)
 {
 	Sleep(1000 * Secnds);
 }
+#else
+#include <unistd.h>
 #endif
 omp_lock_t lock;
 int main(int argc, char* argv[])

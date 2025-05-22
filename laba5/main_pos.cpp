@@ -53,7 +53,7 @@ void Tst_Func(int N) {
 }
 
 int main() {
-    for (int N = 256; N <= 8096; N *= 2) {
+    for (int N = 256; N <= 8192; N *= 2) {
         Tst_Func(N);
     }
 
